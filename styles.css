@@ -53,7 +53,7 @@ body{
 .btn.ghost{border-color:transparent;color:var(--mid)}
 .btn.ghost:hover{background:transparent;color:var(--ink)}
 .btn.danger{color:var(--danger)}
-input[type=password],input[type=text],input[type=date],textarea,select{
+input[type=password],input[type=text],input[type=email],input[type=date],textarea,select{
   width:100%;
   font-family:var(--body);
   font-size:.95rem;
