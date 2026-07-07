@@ -166,6 +166,8 @@ async function cloudSignUp() {
   } catch { authErr("Couldn't set up your journal. Try signing in."); }
 }
 if (cloudMode()) {
+  const signupAllowed = typeof ALLOW_SIGNUP === "undefined" ? true : !!ALLOW_SIGNUP;
+  if (!signupAllowed) $("#btn-cloud-up").classList.add("hidden");
   $("#btn-cloud-in").addEventListener("click", cloudSignIn);
   $("#btn-cloud-up").addEventListener("click", cloudSignUp);
   $("#cloud-pass").addEventListener("keydown", (e) => e.key === "Enter" && cloudSignIn());
@@ -232,10 +234,11 @@ $("#btn-enter").addEventListener("click", () => {
 $$(".tab").forEach((t) =>
   t.addEventListener("click", () => {
     $$(".tab").forEach((x) => x.classList.toggle("active", x === t));
-    ["journal", "book", "evaluation", "settings"].forEach((v) =>
+    ["journal", "book", "evaluation", "loft", "settings"].forEach((v) =>
       $("#view-" + v).classList.toggle("hidden", t.dataset.view !== v));
     if (t.dataset.view === "book") { bookArea = activeArea; bookPage = 0; renderBook(); }
     if (t.dataset.view === "evaluation") renderEval();
+    if (t.dataset.view === "loft") openLoft();
     if (t.dataset.view === "settings") renderSettings();
   })
 );
@@ -325,21 +328,123 @@ const SOUND_LIB = [
   }},
 ];
 const SOUND_MAP = Object.fromEntries(SOUND_LIB.map((s) => [s.id, s]));
-const WHEEL_SOUND = "ratchet";   // ← the wheel's sound (ids: mahoraga, ratchet, oldaxle, dryclack, temple, taiko, waterwheel, clockwork, bamboo, whisper)
+const WHEEL_SOUND = "piano";
+/* ↑ Melodic mode: set to any instrument id — piano, musicbox, kalimba, marimba,
+   harp, vibraphone, glockenspiel, pluck, flute, steeldrum — and each area plays
+   its own note (low Ø1 → high 12). Or set a percussive id (mahoraga, ratchet,
+   oldaxle, dryclack, temple, taiko, waterwheel, clockwork, bamboo, whisper)
+   for the same sound on every turn. */
+
+/* ---- 12 notes, one per area (C major pentatonic, C3 → D5) ---- */
+const PIANO_NOTES = [
+  { n: "C3", f: 130.81 }, { n: "D3", f: 146.83 }, { n: "E3", f: 164.81 },
+  { n: "G3", f: 196.00 }, { n: "A3", f: 220.00 }, { n: "C4", f: 261.63 },
+  { n: "D4", f: 293.66 }, { n: "E4", f: 329.63 }, { n: "G4", f: 392.00 },
+  { n: "A4", f: 440.00 }, { n: "C5", f: 523.25 }, { n: "D5", f: 587.33 },
+];
+
+/* generic melodic voice: partials=[[mult, amp, decayScale]], envelope + filter */
+function voice(t, f, {
+  partials = [[1, 1]], wave = "sine", attack = 0.008, dur = 1.2, g = 0.5,
+  lpStart = 8, lpEnd = 2, inharm = 0, detune = 0, trem = 0, bendFrom = 0,
+  sustain = 0, noise = null,
+} = {}) {
+  const A = _ctx();
+  const master = A.createGain();
+  master.gain.setValueAtTime(0.0001, t);
+  master.gain.exponentialRampToValueAtTime(g, t + attack);
+  if (sustain) master.gain.exponentialRampToValueAtTime(g * 0.8, t + dur * sustain);
+  master.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  const lp = A.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(Math.min(f * lpStart, 10000), t);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(f * lpEnd, 400), t + dur * 0.8);
+  if (trem) {
+    const tg = A.createGain(); tg.gain.value = 1;
+    const lfo = A.createOscillator(); lfo.frequency.value = trem;
+    const lg = A.createGain(); lg.gain.value = 0.35;
+    lfo.connect(lg); lg.connect(tg.gain);
+    lfo.start(t); lfo.stop(t + dur + 0.1);
+    master.connect(tg); tg.connect(lp);
+  } else master.connect(lp);
+  lp.connect(A.destination);
+  partials.forEach(([m, amp, ds = 1]) => {
+    const voices = detune ? [-detune, detune] : [0];
+    voices.forEach((dt, i) => {
+      const o = A.createOscillator();
+      o.type = wave;
+      const fr = f * m * (1 + (m * m - 1) * inharm);
+      if (bendFrom) {
+        o.frequency.setValueAtTime(fr * bendFrom, t);
+        o.frequency.exponentialRampToValueAtTime(fr, t + 0.07);
+      } else o.frequency.setValueAtTime(fr, t);
+      o.detune.value = dt;
+      const og = A.createGain();
+      og.gain.setValueAtTime(amp * (i && detune ? 0.5 : 1), t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(dur * ds, 0.15));
+      o.connect(og); og.connect(master);
+      o.start(t); o.stop(t + dur + 0.05);
+    });
+  });
+  if (noise) _n(t, noise);
+}
+
+const INSTRUMENTS = {
+  piano: { name: "Piano", desc: "warm hammered strings — the classic", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [2, 0.45, 0.85], [3, 0.22, 0.75], [4, 0.1, 0.65], [5, 0.05, 0.55], [6, 0.025, 0.45]],
+    attack: 0.008, dur: 1.5, detune: 1.7, inharm: 0.00045, lpStart: 9, lpEnd: 2,
+    noise: { d: 0.015, f: Math.min(f * 3, 3200), q: 0.8, g: 0.075 } }) },
+  musicbox: { name: "Music Box", desc: "tiny, glassy, nostalgic tines", play: (t, f) => voice(t, f * 2, {
+    partials: [[1, 1], [3.4, 0.22, 0.5], [6.8, 0.07, 0.3]],
+    attack: 0.004, dur: 1.8, inharm: 0.0008, lpStart: 10, lpEnd: 3, g: 0.4 }) },
+  kalimba: { name: "Kalimba", desc: "round thumb-plucked tines, soft and warm", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [5.4, 0.14, 0.25], [8.8, 0.05, 0.15]],
+    attack: 0.004, dur: 0.95, lpStart: 7, lpEnd: 2,
+    noise: { d: 0.012, f: 2200, q: 1, g: 0.08 } }) },
+  marimba: { name: "Marimba", desc: "woody mallet bars, short and earthy", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [4, 0.35, 0.4], [9.2, 0.07, 0.18]],
+    attack: 0.004, dur: 0.7, lpStart: 8, lpEnd: 2.5,
+    noise: { d: 0.02, f: 900, q: 0.8, g: 0.1 } }) },
+  harp: { name: "Harp", desc: "rich plucked strings, long shimmer", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [2, 0.6, 0.8], [3, 0.35, 0.65], [4, 0.2, 0.5], [5, 0.1, 0.4], [6, 0.05, 0.3]],
+    attack: 0.003, dur: 1.7, lpStart: 10, lpEnd: 1.6 }) },
+  vibraphone: { name: "Vibraphone", desc: "metallic bars with a slow shimmer wobble", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [4, 0.18, 0.7], [10, 0.04, 0.4]],
+    attack: 0.012, dur: 2.2, trem: 5.5, lpStart: 8, lpEnd: 3 }) },
+  glockenspiel: { name: "Glockenspiel", desc: "bright little bells, high and sparkly", play: (t, f) => voice(t, f * 2, {
+    partials: [[1, 1], [2.76, 0.35, 0.7], [5.4, 0.18, 0.5], [8.9, 0.08, 0.3]],
+    attack: 0.003, dur: 2.0, inharm: 0.001, lpStart: 12, lpEnd: 4, g: 0.38 }) },
+  pluck: { name: "Synth Pluck", desc: "modern, punchy, filtered — video-game clean", play: (t, f) => voice(t, f, {
+    partials: [[1, 1]], wave: "sawtooth",
+    attack: 0.003, dur: 0.5, lpStart: 6, lpEnd: 1.3, detune: 5, g: 0.42 }) },
+  flute: { name: "Flute", desc: "soft breathy whistle, gentle attack", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [2, 0.14, 0.9], [3, 0.05, 0.8]],
+    attack: 0.06, dur: 0.85, sustain: 0.55, lpStart: 6, lpEnd: 3, g: 0.45,
+    noise: { d: 0.1, f: 4500, type: "highpass", q: 0.4, g: 0.03 } }) },
+  steeldrum: { name: "Steel Drum", desc: "bendy island ping, instantly happy", play: (t, f) => voice(t, f, {
+    partials: [[1, 1], [2, 0.5, 0.6], [3.05, 0.28, 0.45], [4.2, 0.12, 0.3]],
+    attack: 0.005, dur: 0.95, bendFrom: 0.965, lpStart: 9, lpEnd: 3 }) },
+};
+
 function playSound(id) {
   try { const s = SOUND_MAP[id] || SOUND_LIB[0]; s.fn(_ctx().currentTime); }
   catch { /* audio unavailable — turn silently */ }
 }
-function woodTurn() {
+function woodTurn(areaIdx) {
   if (!soundOn) return;
-  playSound(WHEEL_SOUND);
+  const id = DB && DB.sound && (INSTRUMENTS[DB.sound] || SOUND_MAP[DB.sound]) ? DB.sound : WHEEL_SOUND;
+  if (INSTRUMENTS[id] && typeof areaIdx === "number") {
+    try { INSTRUMENTS[id].play(_ctx().currentTime, PIANO_NOTES[areaIdx % 12].f); } catch { /* silent */ }
+    return;
+  }
+  playSound(id);
 }
 document.addEventListener("pointerdown", () => { if (AC && AC.state === "suspended") AC.resume(); });
 $("#btn-sound").addEventListener("click", () => {
   soundOn = !soundOn;
   $("#btn-sound").textContent = soundOn ? "♪ sound on" : "♪ sound off";
   $("#btn-sound").classList.toggle("off", !soundOn);
-  if (soundOn) woodTurn();
+  if (soundOn) woodTurn(activeArea);
 });
 
 /* ================= the wheel ================= */
@@ -379,7 +484,7 @@ function layoutWheel() {
 }
 function setArea(i) {
   const next = ((i % N) + N) % N;
-  if (next !== activeArea) woodTurn();
+  if (next !== activeArea) woodTurn(next);
   activeArea = next;
   layoutWheel();
   renderAreaPane();
@@ -741,9 +846,14 @@ function sector(cx, cy, r0, r1, a0, a1) {
   const large = a1 - a0 > 180 ? 1 : 0;
   return `M${x0},${y0} A${r1},${r1} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${r0},${r0} 0 ${large} 0 ${x3},${y3} Z`;
 }
+function arcPath(cx, cy, r, a0, a1, sweep) {
+  const [x0, y0] = polar(cx, cy, r, sweep ? a0 : a1);
+  const [x1, y1] = polar(cx, cy, r, sweep ? a1 : a0);
+  return `M${x0},${y0} A${r},${r} 0 0 ${sweep} ${x1},${y1}`;
+}
 function drawChart() {
   const svg = $("#eval-chart");
-  const C = 360, R0 = 44, R1 = 268, RLBL = 322, RRING = 288;
+  const C = 360, R0 = 44, R1 = 268, RLBL = 300, RRING = 288;
   const ev = currentEval();
   let out = `<defs>
     <radialGradient id="scoreGrad" gradientUnits="userSpaceOnUse" cx="${C}" cy="${C}" r="${R1}">
@@ -786,18 +896,31 @@ function drawChart() {
     const [bx0, by0] = polar(C, C, R0, A0), [bx1, by1] = polar(C, C, RRING, A0);
     out += `<line x1="${bx0}" y1="${by0}" x2="${bx1}" y2="${by1}" stroke="var(--ink)" stroke-opacity=".3" stroke-width="1"/>`;
 
+    // category labels: radiate along each spoke, outer edge → inward
+    a.cats.forEach((c, ci) => {
+      const camid = A0 + (ci + 0.5) * catSpan;
+      const [tx, ty] = polar(C, C, R1 - 7, camid);
+      const right = camid < 180;
+      const rot = right ? camid - 90 : camid + 90;
+      out += `<text x="${tx}" y="${ty}" font-family="Inter" font-size="10.5" fill="var(--ink)" fill-opacity=".8"
+               stroke="var(--paper)" stroke-width="2.5" stroke-linejoin="round" paint-order="stroke"
+               text-anchor="${right ? "end" : "start"}" dominant-baseline="middle"
+               transform="rotate(${rot},${tx},${ty})">${esc(c)}</text>`;
+    });
+
     // area number near hub
     const [nx, ny] = polar(C, C, R0 - 18, A0 + span / 2);
     out += `<text x="${nx}" y="${ny}" text-anchor="middle" dominant-baseline="middle"
              font-family="Space Grotesk" font-size="13" fill="var(--mid)">${ai + 1}</text>`;
 
-    // area label, rotated to follow the wheel
+    // area title arched parallel to the circle
     const mid = A0 + span / 2;
-    const [lx, ly] = polar(C, C, RLBL, mid);
-    const rot = mid > 90 && mid < 270 ? mid + 180 : mid;
-    out += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle"
-             font-family="Space Grotesk" font-size="16" letter-spacing="1" fill="var(--ink)"
-             transform="rotate(${rot},${lx},${ly})">${esc(a.name)}</text>`;
+    const bottom = mid > 90 && mid < 270;
+    const rArc = bottom ? RLBL + 13 : RLBL;
+    out += `<defs><path id="albl${ai}" d="${arcPath(C, C, rArc, A0 + 2, A0 + span - 2, bottom ? 0 : 1)}" fill="none"/></defs>
+      <text font-family="Space Grotesk" font-size="16" letter-spacing="1.5" fill="var(--ink)">
+        <textPath href="#albl${ai}" startOffset="50%" text-anchor="middle">${esc(a.name)}</textPath>
+      </text>`;
   });
 
   // hub
@@ -811,8 +934,232 @@ function drawChart() {
   svg.innerHTML = out;
 }
 
+/* ================= loft — a 3D object built from evaluations ================= */
+let loftR = null, loftScene = null, loftCam = null, loftGroup = null, loftAnim = null;
+let loftRot = { yaw: 0.7, pitch: 0.38 }, loftZoom = 1, loftDrag = false, loftCenterY = 0, loftBaseDist = 300;
+
+function crm(p0, p1, p2, p3, t) { // Catmull-Rom scalar
+  const t2 = t * t, t3 = t2 * t;
+  return 0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+}
+function sampleClosed(vals, S) { // periodic spline through 12 area averages
+  const n = vals.length, out = new Array(S);
+  for (let k = 0; k < S; k++) {
+    const u = (k / S) * n, i = Math.floor(u), t = u - i;
+    out[k] = Math.max(crm(vals[(i - 1 + n) % n], vals[i % n], vals[(i + 1) % n], vals[(i + 2) % n], t), 0.05);
+  }
+  return out;
+}
+function scoreColor(s) { // 0..10 → matches the chart gradient (red → purple → blue)
+  const stops = [[0, 226, 59, 46], [0.58, 138, 72, 184], [1, 46, 91, 226]];
+  const p = Math.max(0, Math.min(1, s / 10));
+  let a = stops[0], b = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) if (p >= stops[i][0] && p <= stops[i + 1][0]) { a = stops[i]; b = stops[i + 1]; break; }
+  const t = (p - a[0]) / ((b[0] - a[0]) || 1);
+  return [(a[1] + (b[1] - a[1]) * t) / 255, (a[2] + (b[2] - a[2]) * t) / 255, (a[3] + (b[3] - a[3]) * t) / 255];
+}
+function loftXZ(score, k, S, BASE, SCALE) {
+  const rad = (k / S) * Math.PI * 2;
+  const r = BASE + score * SCALE;
+  return [r * Math.sin(rad), -r * Math.cos(rad)];
+}
+function textSprite(txt, px = 24, color = "#1B1B1B") {
+  const m = document.createElement("canvas").getContext("2d");
+  m.font = `500 ${px}px Inter, sans-serif`;
+  const w = Math.ceil(m.measureText(txt).width) + 12, h = px + 12;
+  const c = document.createElement("canvas");
+  c.width = w * 2; c.height = h * 2;
+  const x = c.getContext("2d");
+  x.scale(2, 2); x.font = `500 ${px}px Inter, sans-serif`;
+  x.fillStyle = color; x.textBaseline = "middle"; x.fillText(txt, 6, h / 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(w * 0.42, h * 0.42, 1);
+  return sp;
+}
+
+function initLoft() {
+  if (loftR) return;
+  const canvas = $("#loft-canvas");
+  loftR = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  loftR.setPixelRatio(Math.min(devicePixelRatio, 2));
+  loftScene = new THREE.Scene();
+  loftCam = new THREE.PerspectiveCamera(40, 1, 1, 8000);
+  loftScene.add(new THREE.HemisphereLight(0xffffff, 0x999988, 0.95));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.65);
+  dir.position.set(1, 2, 1.5);
+  loftScene.add(dir);
+  // orbit: drag + wheel
+  let px = 0, py = 0;
+  canvas.addEventListener("pointerdown", (e) => { loftDrag = true; px = e.clientX; py = e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!loftDrag) return;
+    loftRot.yaw += (e.clientX - px) * 0.006;
+    loftRot.pitch = Math.max(-1.2, Math.min(1.45, loftRot.pitch + (e.clientY - py) * 0.005));
+    px = e.clientX; py = e.clientY;
+  });
+  canvas.addEventListener("pointerup", () => (loftDrag = false));
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    loftZoom = Math.max(0.35, Math.min(3, loftZoom * (e.deltaY > 0 ? 1.08 : 0.93)));
+  }, { passive: false });
+  addEventListener("resize", loftResize);
+}
+function loftResize() {
+  if (!loftR) return;
+  const st = $("#loft-stage");
+  loftR.setSize(st.clientWidth, st.clientHeight, false);
+  loftCam.aspect = st.clientWidth / st.clientHeight;
+  loftCam.updateProjectionMatrix();
+}
+function buildLoft() {
+  const evs = [...DB.evaluations].sort((a, b) => a.date.localeCompare(b.date));
+  const empty = $("#loft-empty");
+  empty.classList.toggle("hidden", evs.length > 0);
+  if (!evs.length) empty.innerHTML = "No evaluations yet.<br>Each one you complete becomes a cross-section of this sculpture —<br>create your first in the Evaluation tab.";
+  $("#loft-count").textContent = evs.length
+    ? (evs.length === 1 ? `1 evaluation · ${evs[0].label} — the first slice of the form`
+      : `${evs.length} evaluations · ${evs[0].label} → ${evs[evs.length - 1].label}`)
+    : "";
+  if (loftGroup) {
+    loftScene.remove(loftGroup);
+    loftGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.dispose) o.material.dispose(); });
+  }
+  loftGroup = new THREE.Group();
+  loftScene.add(loftGroup);
+  if (!evs.length) { loftCenterY = 0; loftBaseDist = 300; return; }
+
+  const S = 120, SUB = 8, BASE = 12, SCALE = 9, GAP = 34;
+  const slices = evs.map((ev) => sampleClosed(DB.areas.map((_, ai) => areaAvg(ev, ai) || 0.05), S));
+
+  // vertical spline through slices → smooth loft rows
+  const rows = [];
+  if (evs.length === 1) {
+    rows.push({ y: 0, s: slices[0] }, { y: 5, s: slices[0] });
+  } else {
+    for (let j = 0; j < evs.length - 1; j++) {
+      for (let k = 0; k < SUB; k++) {
+        const t = k / SUB, row = new Array(S);
+        for (let c = 0; c < S; c++) {
+          row[c] = Math.max(crm(
+            slices[Math.max(j - 1, 0)][c], slices[j][c],
+            slices[j + 1][c], slices[Math.min(j + 2, evs.length - 1)][c], t), 0.05);
+        }
+        rows.push({ y: (j + t) * GAP, s: row });
+      }
+    }
+    rows.push({ y: (evs.length - 1) * GAP, s: slices[evs.length - 1] });
+  }
+
+  // lofted surface with per-vertex score colors
+  const R = rows.length;
+  const pos = new Float32Array(R * S * 3), col = new Float32Array(R * S * 3);
+  rows.forEach((row, r) => row.s.forEach((sc, k) => {
+    const [x, z] = loftXZ(sc, k, S, BASE, SCALE);
+    const i = (r * S + k) * 3;
+    pos[i] = x; pos[i + 1] = row.y; pos[i + 2] = z;
+    const [cr, cg, cb] = scoreColor(sc);
+    col[i] = cr; col[i + 1] = cg; col[i + 2] = cb;
+  }));
+  const idx = [];
+  for (let r = 0; r < R - 1; r++) for (let k = 0; k < S; k++) {
+    const a = r * S + k, b = r * S + (k + 1) % S, c = (r + 1) * S + (k + 1) % S, d = (r + 1) * S + k;
+    idx.push(a, b, c, a, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  loftGroup.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    vertexColors: true, side: THREE.DoubleSide, roughness: 0.75, metalness: 0.08,
+  })));
+
+  // ink ring + label at every real evaluation slice
+  evs.forEach((ev, j) => {
+    const y = (evs.length === 1 ? 0 : j * GAP);
+    const pts = slices[j].map((sc, k) => {
+      const [x, z] = loftXZ(sc + 0.12, k, S, BASE, SCALE);
+      return new THREE.Vector3(x, y, z);
+    });
+    const rg = new THREE.BufferGeometry().setFromPoints(pts);
+    loftGroup.add(new THREE.LineLoop(rg, new THREE.LineBasicMaterial({ color: 0x1b1b1b, transparent: true, opacity: 0.55 })));
+    const lbl = textSprite(ev.label.split("·")[0].trim(), 20, "#8A8A85");
+    const [lx, lz] = loftXZ(slices[j][0] + 2.4, 0, S, BASE, SCALE);
+    lbl.position.set(lx, y, lz);
+    loftGroup.add(lbl);
+  });
+
+  // base compass: ring + 12 area labels
+  const baseR = BASE + 10 * SCALE + 14;
+  const cir = [];
+  for (let k = 0; k <= 90; k++) {
+    const a = (k / 90) * Math.PI * 2;
+    cir.push(new THREE.Vector3(baseR * Math.sin(a), -8, -baseR * Math.cos(a)));
+  }
+  loftGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cir),
+    new THREE.LineBasicMaterial({ color: 0xcfcfca })));
+  DB.areas.forEach((a, ai) => {
+    const ang = ((ai + 0.5) / 12) * Math.PI * 2;
+    const sp = textSprite(a.name, 22, "#1B1B1B");
+    sp.position.set((baseR + 16) * Math.sin(ang), -8, -(baseR + 16) * Math.cos(ang));
+    loftGroup.add(sp);
+  });
+
+  const totalH = rows[rows.length - 1].y;
+  loftCenterY = totalH / 2;
+  loftBaseDist = Math.max(320, totalH * 1.15 + 260);
+}
+function loftFrame() {
+  if ($("#view-loft").classList.contains("hidden") || $("#app").classList.contains("hidden")) { loftAnim = null; return; }
+  if (!loftDrag) loftRot.yaw += 0.0016; // gentle auto-rotate
+  const d = loftBaseDist * loftZoom;
+  loftCam.position.set(
+    d * Math.cos(loftRot.pitch) * Math.sin(loftRot.yaw),
+    loftCenterY + d * Math.sin(loftRot.pitch),
+    d * Math.cos(loftRot.pitch) * Math.cos(loftRot.yaw)
+  );
+  loftCam.lookAt(0, loftCenterY, 0);
+  loftR.render(loftScene, loftCam);
+  loftAnim = requestAnimationFrame(loftFrame);
+}
+function openLoft() {
+  if (typeof THREE === "undefined") {
+    $("#loft-empty").classList.remove("hidden");
+    $("#loft-empty").innerHTML = "The 3D engine couldn't load — check your internet connection and refresh.";
+    return;
+  }
+  initLoft();
+  buildLoft();
+  loftResize();
+  if (!loftAnim) loftFrame();
+}
+
 /* ================= settings ================= */
+const PICKER_INSTRUMENTS = ["musicbox", "harp", "marimba", "vibraphone", "piano"];
+function renderInstList() {
+  const wrap = $("#inst-list");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const current = DB && DB.sound && INSTRUMENTS[DB.sound] ? DB.sound : WHEEL_SOUND;
+  PICKER_INSTRUMENTS.forEach((id, i) => {
+    const inst = INSTRUMENTS[id];
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "snd-opt" + (id === current ? " selected" : "");
+    b.innerHTML = `<span class="snd-dot"></span><span class="snd-txt"><b>${String(i + 1).padStart(2, "0").replace(/0/g, "Ø")} · ${inst.name}</b><span>${inst.desc}</span></span>`;
+    b.addEventListener("click", async () => {
+      DB.sound = id;
+      try { INSTRUMENTS[id].play(_ctx().currentTime, PIANO_NOTES[activeArea % 12].f); } catch { /* silent */ }
+      await persist();
+      renderInstList();
+    });
+    wrap.appendChild(b);
+  });
+}
 function renderSettings() {
+  renderInstList();
   const wrap = $("#settings-areas");
   wrap.innerHTML = "";
   DB.areas.forEach((a, i) => {

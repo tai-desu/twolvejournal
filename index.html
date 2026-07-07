@@ -61,6 +61,7 @@
       <button class="tab active" data-view="journal">Journal</button>
       <button class="tab" data-view="book">Book</button>
       <button class="tab" data-view="evaluation">Evaluation</button>
+      <button class="tab" data-view="loft">Loft</button>
       <button class="tab" data-view="settings">Settings</button>
     </nav>
     <span class="sync-status" id="sync-status"></span>
@@ -167,6 +168,19 @@
     </div>
   </main>
 
+  <!-- ===== LOFT (3D) ===== -->
+  <main id="view-loft" class="appview hidden">
+    <div class="loft-stage" id="loft-stage">
+      <canvas id="loft-canvas"></canvas>
+      <div class="loft-hud">
+        <b>THE SHAPE OF MY LIFE</b>
+        <span id="loft-count"></span>
+        <span class="loft-hint">drag to rotate · scroll to zoom</span>
+      </div>
+      <div class="loft-empty hidden" id="loft-empty"></div>
+    </div>
+  </main>
+
   <!-- ===== SETTINGS ===== -->
   <main id="view-settings" class="appview hidden">
     <div class="settings-col">
@@ -184,6 +198,9 @@
       <label class="btn" for="import-file">Import backup</label>
       <input type="file" id="import-file" accept=".json" class="hidden">
       <p class="hint" style="margin-top:.8rem">Readable = plain text you can open anywhere; keep it somewhere private. Encrypted = unreadable without your password; safe for cloud drives. Import accepts both.</p>
+      <h2 style="margin-top:2.2rem">Wheel instrument</h2>
+      <p class="hint">Each area plays its own note, low Ø1 → high 12. Click to hear and choose — your pick syncs across devices.</p>
+      <div id="inst-list"></div>
       <h2 style="margin-top:2.2rem">Password</h2>
       <input type="password" id="chg-old" placeholder="Current password">
       <input type="password" id="chg-new" placeholder="New password">
@@ -193,6 +210,7 @@
   </main>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="quotes.js"></script>
