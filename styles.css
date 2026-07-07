@@ -174,14 +174,17 @@ textarea{resize:vertical}
   background:var(--faint);transform:translateY(-50%);
 }
 .w-label{
-  opacity:0;max-width:0;overflow:hidden;
-  transition:opacity .4s .1s;
+  position:absolute;left:8px;top:100%;
+  padding-top:.4rem;
+  opacity:0;
+  transition:opacity .4s .12s;
+  pointer-events:none;
 }
-.w-label b{display:block;font-family:var(--disp);font-size:1rem;letter-spacing:.02em}
-.w-label span{display:block;color:var(--mid);font-size:.8rem;max-width:220px;white-space:normal;line-height:1.35}
+.w-label b{display:block;font-family:var(--disp);font-size:1.05rem;letter-spacing:.02em}
+.w-label span{display:block;color:var(--mid);font-size:.8rem;line-height:1.35}
 .w-item.active .w-num{color:var(--ink);font-size:6.2rem}
 .w-item.active .w-dot{background:var(--ink)}
-.w-item.active .w-label{opacity:1;max-width:260px}
+.w-item.active .w-label{opacity:1}
 .w-item.far{opacity:0}
 .wheel-hint{
   position:absolute;bottom:1.2rem;left:0;right:0;text-align:center;
@@ -428,8 +431,6 @@ textarea{resize:vertical}
   .topbar nav::-webkit-scrollbar{display:none}
   .tab{padding:.45rem .6rem;font-size:.78rem;white-space:nowrap}
   #btn-lock{padding:.45rem .4rem;font-size:.75rem;white-space:nowrap}
-  .w-item.active .w-label{max-width:150px}
-  .w-label span{max-width:150px}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important;animation:none !important}
