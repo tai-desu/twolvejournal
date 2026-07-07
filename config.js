@@ -10,10 +10,10 @@
    3. Project Settings → API → copy the two values below
    4. Commit this file and redeploy
    ============================================================ */
-const SUPABASE_URL = "";       // e.g. "https://abcdefgh.supabase.co"
-const SUPABASE_ANON_KEY = "";  // the long "anon public" key
+const SUPABASE_URL = "https://bshqrrfczetumqktvhwm.supabase.co";       // e.g. "https://abcdefgh.supabase.co"
+const SUPABASE_ANON_KEY = "sb_publishable_xdKFBb4125hCdWKeNkZvbQ_1KwIfaDa";  // the long "anon public" key
 
 /* Set to false once your account exists to hide the Create account
    button. Also disable "Allow new users to sign up" in Supabase
    (Authentication settings) — that's the real server-side lock. */
-const ALLOW_SIGNUP = true;
+const ALLOW_SIGNUP = false;
