@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Twelve — Life Wheel Journal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Inter:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ========== AUTH ========== -->
+<section id="view-auth" class="view">
+  <div class="auth-card">
+    <div class="wordmark">TW<span class="slash">Ø</span>LVE</div>
+    <p class="auth-sub" id="auth-sub">Your private life-wheel journal.</p>
+
+    <div id="auth-setup" class="hidden">
+      <p class="auth-note">First time here. Choose a password — it encrypts everything you write. <strong>There is no recovery if you forget it.</strong></p>
+      <input type="password" id="setup-pass-1" placeholder="Create password" autocomplete="new-password">
+      <input type="password" id="setup-pass-2" placeholder="Repeat password" autocomplete="new-password">
+      <button class="btn primary" id="btn-setup">Create journal</button>
+    </div>
+
+    <div id="auth-login" class="hidden">
+      <input type="password" id="login-pass" placeholder="Password" autocomplete="current-password">
+      <button class="btn primary" id="btn-login">Unlock</button>
+    </div>
+
+    <div id="auth-cloud" class="hidden">
+      <input type="email" id="cloud-email" placeholder="Email" autocomplete="email">
+      <input type="password" id="cloud-pass" placeholder="Password" autocomplete="current-password">
+      <button class="btn primary" id="btn-cloud-in">Sign in</button>
+      <button class="btn" id="btn-cloud-up">Create account</button>
+      <p class="auth-note" style="margin-top:1.1rem">Synced across your devices. Your journal is encrypted on this device before anything is uploaded.</p>
+    </div>
+
+    <p class="auth-error" id="auth-error"></p>
+  </div>
+</section>
+
+<!-- ========== QUOTE INTERSTITIAL ========== -->
+<section id="view-quote" class="view hidden">
+  <div class="quote-stage">
+    <div class="quote-greet" id="quote-greet"></div>
+    <div class="quote-index" id="quote-index">Ø7 / 1ØØ</div>
+    <blockquote id="quote-text"></blockquote>
+    <cite id="quote-author"></cite>
+    <button class="btn primary" id="btn-enter">Begin today’s entry →</button>
+    <button class="btn ghost" id="btn-another-quote">Another quote</button>
+  </div>
+</section>
+
+<!-- ========== APP SHELL ========== -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="wordmark small">TW<span class="slash">Ø</span>LVE</div>
+    <nav>
+      <button class="tab active" data-view="journal">Journal</button>
+      <button class="tab" data-view="book">Book</button>
+      <button class="tab" data-view="evaluation">Evaluation</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+    <span class="sync-status" id="sync-status"></span>
+    <button class="btn ghost" id="btn-lock">Lock ⟶</button>
+  </header>
+
+  <div id="backup-note" class="backup-note hidden">
+    <span id="bn-text"></span>
+    <button class="btn small" id="bn-export">Export backup now</button>
+    <button class="bn-close" id="bn-close" title="Remind me later">✕</button>
+  </div>
+
+  <!-- ===== JOURNAL ===== -->
+  <main id="view-journal" class="appview">
+    <div class="wheel-pane" id="wheel-pane">
+      <div class="wheel-ring"></div>
+      <div class="wheel-items" id="wheel-items"></div>
+      <button class="sound-toggle" id="btn-sound" title="Wheel sound on/off">♪ sound on</button>
+      <div class="wheel-hint">scroll to turn the wheel</div>
+    </div>
+
+    <div class="journal-pane">
+      <div class="area-head">
+        <h1 id="area-title"></h1>
+        <p id="area-cats" class="area-cats"></p>
+        <div class="goal-preview" id="goal-preview" title="Open goals"></div>
+      </div>
+
+      <div class="pane-tabs">
+        <button class="ptab active" data-pane="write">Today</button>
+        <button class="ptab" data-pane="goals">Goals</button>
+        <button class="ptab" data-pane="history">Past entries</button>
+      </div>
+
+      <!-- write -->
+      <div class="pane" id="pane-write">
+        <label class="fld-label" for="fld-date">Date</label>
+        <input type="date" id="fld-date">
+        <label class="fld-label" for="fld-feelings">How I feel</label>
+        <textarea id="fld-feelings" rows="3" placeholder="Name the feeling before you explain it…"></textarea>
+        <label class="fld-label" for="fld-struggles">What I’m struggling with</label>
+        <textarea id="fld-struggles" rows="3" placeholder="What felt heavy today?"></textarea>
+        <label class="fld-label" for="fld-reflection">Reflection</label>
+        <textarea id="fld-reflection" rows="4" placeholder="What did today teach me about this area?"></textarea>
+        <button class="btn primary" id="btn-save-entry">Save entry</button>
+        <span class="save-flash" id="save-flash"></span>
+      </div>
+
+      <!-- goals -->
+      <div class="pane hidden" id="pane-goals">
+        <div class="goal-new">
+          <input type="text" id="goal-text" placeholder="A goal for this area…">
+          <input type="date" id="goal-date" title="Target date">
+          <button class="btn primary" id="btn-add-goal">Add</button>
+        </div>
+        <ul class="goal-list" id="goal-list"></ul>
+      </div>
+
+      <!-- history -->
+      <div class="pane hidden" id="pane-history">
+        <ul class="entry-list" id="entry-list"></ul>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== BOOK ===== -->
+  <main id="view-book" class="appview hidden">
+    <div class="book-stage">
+      <button class="b-nav" id="b-prev" title="Previous page">‹</button>
+      <div class="book" id="book">
+        <div class="b-page b-left" id="b-left"></div>
+        <div class="b-page b-right" id="b-right"></div>
+        <div class="b-spine"></div>
+      </div>
+      <button class="b-nav" id="b-next" title="Next page">›</button>
+      <div class="b-tabs" id="b-tabs"></div>
+    </div>
+  </main>
+
+  <!-- ===== EVALUATION ===== -->
+  <main id="view-evaluation" class="appview hidden">
+    <div class="eval-left">
+      <div class="eval-toolbar">
+        <select id="eval-select"></select>
+        <button class="btn primary" id="btn-new-eval">＋ New evaluation</button>
+        <button class="btn ghost danger" id="btn-del-eval">Delete</button>
+      </div>
+      <p class="eval-due" id="eval-due"></p>
+      <div class="eval-chart-wrap">
+        <svg id="eval-chart" viewBox="0 0 720 720" role="img" aria-label="Life wheel scores"></svg>
+      </div>
+      <div class="eval-legend">
+        <span class="lg-dot" style="background:var(--score-lo)"></span> 1 · low satisfaction
+        <span class="lg-bar"></span>
+        <span class="lg-dot" style="background:var(--score-hi)"></span> 10 · high satisfaction
+      </div>
+    </div>
+
+    <div class="eval-right">
+      <h2 id="eval-title">Scores</h2>
+      <p class="eval-help">For each category ask one question: <em>“How satisfied am I with this right now?”</em><br>
+      1–2 neglected · 3–4 struggling · 5–6 okay but flat · 7–8 good, steady · 9–10 thriving.</p>
+      <div id="eval-areas"></div>
+    </div>
+  </main>
+
+  <!-- ===== SETTINGS ===== -->
+  <main id="view-settings" class="appview hidden">
+    <div class="settings-col">
+      <h2>Areas & categories</h2>
+      <p class="hint">Rename any area, and keep up to 5 categories per area (one per line).</p>
+      <div id="settings-areas"></div>
+      <button class="btn primary" id="btn-save-settings">Save changes</button>
+      <span class="save-flash" id="settings-flash"></span>
+    </div>
+    <div class="settings-col">
+      <h2>Data</h2>
+      <p class="hint">Everything lives encrypted in this browser only. Export a backup regularly — the app reminds you every 14 days.</p>
+      <button class="btn" id="btn-export">Export readable (.json)</button>
+      <button class="btn" id="btn-export-enc">Export encrypted (.json)</button>
+      <label class="btn" for="import-file">Import backup</label>
+      <input type="file" id="import-file" accept=".json" class="hidden">
+      <p class="hint" style="margin-top:.8rem">Readable = plain text you can open anywhere; keep it somewhere private. Encrypted = unreadable without your password; safe for cloud drives. Import accepts both.</p>
+      <h2 style="margin-top:2.2rem">Password</h2>
+      <input type="password" id="chg-old" placeholder="Current password">
+      <input type="password" id="chg-new" placeholder="New password">
+      <button class="btn" id="btn-chg-pass">Change password</button>
+      <p class="auth-error" id="settings-error"></p>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="quotes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
