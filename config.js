@@ -16,4 +16,4 @@ const SUPABASE_ANON_KEY = "sb_publishable_xdKFBb4125hCdWKeNkZvbQ_1KwIfaDa";  // 
 /* Set to false once your account exists to hide the Create account
    button. Also disable "Allow new users to sign up" in Supabase
    (Authentication settings) — that's the real server-side lock. */
-const ALLOW_SIGNUP = false;
+const ALLOW_SIGNUP = true;
