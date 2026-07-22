@@ -32,6 +32,7 @@
     <div id="auth-cloud" class="hidden">
       <input type="email" id="cloud-email" placeholder="Email" autocomplete="email">
       <input type="password" id="cloud-pass" placeholder="Password" autocomplete="current-password">
+      <input type="text" id="cloud-name" placeholder="First name (new accounts only)" autocomplete="given-name">
       <button class="btn primary" id="btn-cloud-in">Sign in</button>
       <button class="btn" id="btn-cloud-up">Create account</button>
       <p class="auth-note" style="margin-top:1.1rem">Synced across your devices. Your journal is encrypted on this device before anything is uploaded.</p>
@@ -191,7 +192,12 @@
       <span class="save-flash" id="settings-flash"></span>
     </div>
     <div class="settings-col">
-      <h2>Data</h2>
+      <h2>Your name</h2>
+      <p class="hint">The name used to greet you on the quote screen. Stored inside your own encrypted journal.</p>
+      <input type="text" id="set-name" placeholder="First name">
+      <button class="btn" id="btn-save-name">Save name</button>
+      <span class="save-flash" id="name-flash"></span>
+      <h2 style="margin-top:2.2rem">Data</h2>
       <p class="hint">Everything lives encrypted in this browser only. Export a backup regularly — the app reminds you every 14 days.</p>
       <button class="btn" id="btn-export">Export readable (.json)</button>
       <button class="btn" id="btn-export-enc">Export encrypted (.json)</button>

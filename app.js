@@ -154,14 +154,17 @@ async function cloudSignIn() {
 async function cloudSignUp() {
   authErr("");
   const email = $("#cloud-email").value.trim(), pass = $("#cloud-pass").value;
+  const name = $("#cloud-name").value.trim();
   if (!email || !pass) return authErr("Email and password, please.");
+  if (!name) return authErr("Add a first name so we know what to call you.");
   if (pass.length < 6) return authErr("Use at least 6 characters.");
   const { data, error } = await SB.auth.signUp({ email, password: pass });
   if (error) return authErr(error.message);
   if (!data.session) return authErr("Account created — check your email to confirm, then sign in.");
   try {
     await cloudOpenVault(pass);
-    $("#cloud-pass").value = "";
+    if (DB && !DB.name) { DB.name = name; await persist(); }   // store name in the new vault
+    $("#cloud-pass").value = ""; $("#cloud-name").value = "";
     enterQuote();
   } catch { authErr("Couldn't set up your journal. Try signing in."); }
 }
@@ -206,7 +209,8 @@ const pad0 = (n) => String(n).padStart(2, "0").replace(/0/g, "Ø");
 function greeting() {
   const h = new Date().getHours();
   const part = h < 5 ? "Still up" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-  const name = typeof USER_NAME !== "undefined" && USER_NAME ? USER_NAME : "";
+  const vaultName = DB && DB.name ? DB.name : "";
+  const name = vaultName || (typeof USER_NAME !== "undefined" && USER_NAME ? USER_NAME : "");
   return name ? `${part}, <b>${name}</b>.` : `${part}.`;
 }
 function showQuote() {
@@ -1160,6 +1164,8 @@ function renderInstList() {
 }
 function renderSettings() {
   renderInstList();
+  const nameInput = $("#set-name");
+  if (nameInput) nameInput.value = (DB && DB.name) ? DB.name : "";
   const wrap = $("#settings-areas");
   wrap.innerHTML = "";
   DB.areas.forEach((a, i) => {
@@ -1171,6 +1177,11 @@ function renderSettings() {
     wrap.appendChild(div);
   });
 }
+$("#btn-save-name").addEventListener("click", async () => {
+  DB.name = $("#set-name").value.trim();
+  await persist();
+  flash("#name-flash", "Saved ✓");
+});
 $("#btn-save-settings").addEventListener("click", async () => {
   $$(".s-name").forEach((inp) => {
     const v = inp.value.trim();
